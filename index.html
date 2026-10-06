@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- Só tema claro: impede o navegador de escurecer/inverter as cores no modo escuro do celular -->
+  <meta name="color-scheme" content="only light">
+  <meta name="theme-color" content="#FFF0EB">
   <title>Um convite pra você</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,6 +20,7 @@
       --white: #FFFFFF;
       --error: #B3001B;
       --radius: 18px;
+      color-scheme: only light;
     }
 
     *, *::before, *::after { box-sizing: border-box; }
@@ -204,6 +208,33 @@
       background: var(--accent);
       border-color: var(--accent);
       color: var(--white);
+    }
+
+    /* Destaque da "Minha ideia" */
+    .option-idea {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px rgba(214, 40, 57, .15);
+    }
+    .option-idea .icon {
+      color: var(--accent);
+      animation: twinkle 2.4s ease-in-out infinite;
+    }
+    .option-idea[aria-pressed="true"] { box-shadow: none; }
+    .option-idea[aria-pressed="true"] .icon { color: var(--white); animation: none; }
+    .option-hint {
+      display: block;
+      margin-top: 4px;
+      font-size: 13px;
+      font-weight: 400;
+      line-height: 1.25;
+      color: var(--accent);
+    }
+    .option-idea[aria-pressed="true"] .option-hint { color: var(--white); }
+
+    @keyframes twinkle {
+      0%, 70%, 100% { transform: scale(1) rotate(0); }
+      80% { transform: scale(1.2) rotate(-12deg); }
+      90% { transform: scale(1.1) rotate(8deg); }
     }
 
     .icon {
@@ -434,9 +465,12 @@
             <svg class="icon" aria-hidden="true"><use href="#i-utensils"/></svg>
             Restaurante
           </button>
-          <button type="button" class="option" data-value="Minha ideia" aria-pressed="false" aria-controls="idea-panel">
+          <button type="button" class="option option-idea" data-value="Minha ideia" aria-pressed="false" aria-controls="idea-panel">
             <svg class="icon" aria-hidden="true"><use href="#i-star"/></svg>
-            Minha ideia
+            <span>
+              Minha ideia
+              <span class="option-hint">Ei, minha ideia é boa 😂</span>
+            </span>
           </button>
         </div>
 
