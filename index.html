@@ -151,27 +151,30 @@
       font-size: 17px;
     }
 
-    input[type="date"] {
+    select {
       width: 100%;
       min-height: 56px;
-      padding: 12px 16px;
+      padding: 12px 48px 12px 16px;
       font: inherit;
       font-size: 17px;
       color: var(--text);
-      background: var(--white);
+      background-color: var(--white);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232B0E12' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 16px center;
+      background-size: 20px;
       border: 2px solid var(--text);
       border-radius: 14px;
       appearance: none;
       -webkit-appearance: none;
+      cursor: pointer;
     }
-    input[type="date"][aria-invalid="true"] { border-color: var(--error); }
 
     .help {
       margin: 8px 0 0;
       font-size: 15px;
       color: var(--muted);
     }
-    .help.error { color: var(--error); font-weight: 600; }
 
     .options {
       display: grid;
@@ -420,8 +423,10 @@
 
       <div class="field">
         <label class="field-label" for="date">Escolha um dia</label>
-        <input type="date" id="date" aria-describedby="date-help">
-        <p class="help" id="date-help" aria-live="polite"></p>
+        <select id="date" aria-describedby="date-help">
+          <option value="" disabled selected>Selecione um dia</option>
+        </select>
+        <p class="help" id="date-help">Escolha um dos próximos três fins de semana.</p>
       </div>
 
       <div class="field" role="group" aria-labelledby="activity-label">
@@ -474,7 +479,8 @@
       </div>
 
       <div class="footer">
-        <button type="button" class="btn btn-primary" id="btn-continue" disabled>Continuar</button>
+        <p class="send-error" id="send-error" role="alert" hidden>Não consegui enviar. Confere a internet e tenta de novo.</p>
+        <button type="button" class="btn btn-primary" id="btn-finish" disabled>Finalizar</button>
       </div>
     </section>
 
@@ -504,12 +510,7 @@
 
       <p class="closing">Mal posso esperar.</p>
 
-      <div class="footer" id="summary-actions">
-        <p class="send-error" id="send-error" role="alert" hidden>Não consegui enviar. Confere a internet e tenta de novo.</p>
-        <button type="button" class="btn btn-primary" id="btn-finish">Finalizar</button>
-        <button type="button" class="btn btn-outline" id="btn-edit">Quero mudar algo</button>
-      </div>
-      <div class="footer" id="summary-sent" hidden>
+      <div class="footer">
         <p class="sent" role="status">
           <svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>
           Resposta enviada. Te vejo lá!
@@ -530,10 +531,10 @@
       const screens = [null, $('screen-1'), $('screen-2'), $('screen-3')];
       const btnYes = $('btn-yes');
       const btnNo = $('btn-no');
-      const dateInput = $('date');
-      const dateHelp = $('date-help');
+      const dateSelect = $('date');
       const options = Array.from(document.querySelectorAll('.option'));
-      const btnContinue = $('btn-continue');
+      const btnFinish = $('btn-finish');
+      const sendError = $('send-error');
       const ideaPanel = $('idea-panel');
 
       // Detalhe da "Minha ideia", usado no resumo e no e-mail.
@@ -554,22 +555,32 @@
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      // Mesmo dia do mês seguinte; se não existir (ex.: 31/01), usa o último dia do mês seguinte.
-      const maxDate = (() => {
-        const d = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-        const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-        d.setDate(Math.min(today.getDate(), lastDay));
-        return d;
-      })();
+      // Próximos 3 fins de semana. Se hoje já é sábado ou domingo, o fim de semana atual
+      // conta como o primeiro (só com os dias que ainda não passaram).
+      const WEEKENDS = 3;
+      const ddmm = (d) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
 
-      const minISO = toISO(today);
-      const maxISO = toISO(maxDate);
-      const maxLabel = maxDate.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' });
+      function buildWeekendOptions() {
+        const daysToSat = (6 - today.getDay() + 7) % 7;
+        const firstSat = new Date(today.getFullYear(), today.getMonth(), today.getDate() + daysToSat);
+        if (today.getDay() === 0) firstSat.setDate(firstSat.getDate() - 7);
 
-      dateInput.min = minISO;
-      dateInput.max = maxISO;
-
-      const isDateValid = (iso) => /^\d{4}-\d{2}-\d{2}$/.test(iso) && iso >= minISO && iso <= maxISO;
+        for (let w = 0; w < WEEKENDS; w++) {
+          const sat = new Date(firstSat.getFullYear(), firstSat.getMonth(), firstSat.getDate() + w * 7);
+          const sun = new Date(sat.getFullYear(), sat.getMonth(), sat.getDate() + 1);
+          const group = document.createElement('optgroup');
+          group.label = `Fim de semana de ${ddmm(sat)}`;
+          [['Sábado', sat], ['Domingo', sun]].forEach(([name, d]) => {
+            if (d < today) return;
+            const opt = document.createElement('option');
+            opt.value = toISO(d);
+            opt.textContent = `${name}, ${ddmm(d)}`;
+            group.appendChild(opt);
+          });
+          dateSelect.appendChild(group);
+        }
+      }
+      buildWeekendOptions();
 
       // ---------- Navegação ----------
       function show(n) {
@@ -600,10 +611,10 @@
 
       // ---------- Tela 2 ----------
       function renderStep2() {
-        dateInput.value = state.date;
+        dateSelect.value = state.date;
         options.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.value === state.activity)));
         updateIdeaPanel();
-        updateDateFeedback();
+        updateFinish();
       }
 
       function updateIdeaPanel() {
@@ -612,71 +623,35 @@
         document.querySelector(`.option[data-value="${IDEA_VALUE}"]`).setAttribute('aria-expanded', String(open));
       }
 
-      function updateDateFeedback() {
-        const value = dateInput.value;
-        const outOfRange = value !== '' && !isDateValid(value);
-        state.date = isDateValid(value) ? value : '';
-
-        if (outOfRange) {
-          dateHelp.textContent = `Escolha um dia entre hoje e ${maxLabel}.`;
-          dateHelp.classList.add('error');
-          dateInput.setAttribute('aria-invalid', 'true');
-        } else {
-          dateHelp.textContent = `Pode ser qualquer dia de hoje até ${maxLabel}.`;
-          dateHelp.classList.remove('error');
-          dateInput.removeAttribute('aria-invalid');
-        }
-        updateContinue();
+      function updateFinish() {
+        btnFinish.disabled = !(state.date && state.activity);
       }
 
-      function updateContinue() {
-        btnContinue.disabled = !(state.date && state.activity);
-      }
-
-      dateInput.addEventListener('input', updateDateFeedback);
-      dateInput.addEventListener('change', updateDateFeedback);
+      dateSelect.addEventListener('change', () => {
+        state.date = dateSelect.value;
+        updateFinish();
+      });
 
       options.forEach((btn) => {
         btn.addEventListener('click', () => {
           state.activity = btn.dataset.value;
           options.forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
           updateIdeaPanel();
-          updateContinue();
+          updateFinish();
         });
       });
 
-      btnContinue.addEventListener('click', () => {
-        if (btnContinue.disabled) return;
-        renderSummary();
-        show(3);
-      });
-
-      // ---------- Tela 3 ----------
       const formatDate = (iso) => {
         const text = fromISO(iso).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
         return text.charAt(0).toUpperCase() + text.slice(1);
       };
 
-      function renderSummary() {
-        $('summary-date').textContent = formatDate(state.date);
-        $('summary-activity').textContent = state.activity;
-        const detail = $('summary-detail');
-        detail.textContent = IDEA_DETAIL;
-        detail.hidden = state.activity !== IDEA_VALUE;
-        $('send-error').hidden = true;
-      }
-
-      $('btn-edit').addEventListener('click', () => {
-        renderStep2();
-        show(2);
-      });
-
-      const btnFinish = $('btn-finish');
-
+      // "Finalizar" envia a resposta por e-mail e, se der certo, mostra o resumo.
       btnFinish.addEventListener('click', async () => {
+        if (!state.date || !state.activity) return;
         btnFinish.disabled = true;
         btnFinish.textContent = 'Enviando...';
-        $('send-error').hidden = true;
+        sendError.hidden = true;
 
         try {
           if (FORMSPREE_ENDPOINT) {
@@ -693,18 +668,27 @@
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
           }
-          $('summary-actions').hidden = true;
-          $('summary-sent').hidden = false;
+          renderSummary();
+          show(3);
         } catch (err) {
-          $('send-error').hidden = false;
+          sendError.hidden = false;
           btnFinish.disabled = false;
           btnFinish.textContent = 'Finalizar';
         }
       });
 
+      // ---------- Tela 3 ----------
+      function renderSummary() {
+        $('summary-date').textContent = formatDate(state.date);
+        $('summary-activity').textContent = state.activity;
+        const detail = $('summary-detail');
+        detail.textContent = IDEA_DETAIL;
+        detail.hidden = state.activity !== IDEA_VALUE;
+      }
+
       // Estado inicial
       renderNo();
-      updateDateFeedback();
+      updateFinish();
     })();
   </script>
 </body>
